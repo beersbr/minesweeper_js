@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>minesweeper</title>
+	<script type="text/javascript">
+	window.onload = function() {
+
+		let canvas = document.getElementById('gt');
+		let ctx = canvas.getContext('2d');
+
+		let width = height = 400;
+		let tile_width = tile_height = 20;
+		let tiles_x = parseInt(width/tile_width);
+		let tiles_y = parseInt(height/tile_height);
+
+		canvas.width  = width;
+		canvas.height = height;
+
+		const NUMBER_STYLES = {
+			1: "#00F",
+			2: "#0F0",
+			3: "#F00",
+			4: "#008",
+			5: "#800",
+			6: "#088",
+			7: "#808",
+			8: "#AAA",
+		}
+
+		let difficulty  = 6;
+		let mines_count = parseInt(Math.random() * 10) * difficulty + difficulty;
+		let mines       = [];
+		let numbers     = {};
+		let open        = {};
+		let flags       = {};
+		let found_count = 0;
+
+		function getIndex(x, y) {
+			return x + (y*tiles_x);
+		}
+
+		function getCoords(i) {
+			return [i % tiles_x, Math.floor(i / tiles_x)];
+		}
+
+
+		function getElementOffset(el) {
+			let e = el;
+			let offset = [0, 0];
+
+			do {
+				offset[0] += el.offsetLeft;
+				offset[1] += el.offsetTop;
+				el = el.parentElement;
+			} while( el.parentElement && el.parentElement.tagName != "BODY" );
+
+			return offset;
+		}
+
+		let clicked = null;
+		canvas.onmouseup = function(evt) {
+			let offset = getElementOffset(this);
+			clicked = [offset[0] + evt.x, offset[1] + evt.y];
+
+			evt.preventDefault();
+		};
+
+		let keys = {};
+		let keys_pressed = {};
+		window.onkeydown = function(evt) { 
+			keys[evt.key] = true;
+		};
+
+		window.onkeyup = function(evt) { 
+			keys[evt.key] = false;
+			keys_pressed[evt.key] = true;
+		};
+
+
+		function getSurroundingTiles(index, no_diags) {
+
+			let positions = [index - tiles_x,
+							 index + tiles_x];
+
+			if ( index % tiles_x != tiles_x - 1 ) {
+
+				positions.push(index + 1);
+
+				if ( !no_diags ) {
+					positions.push(index + (tiles_x + 1));
+					positions.push(index - (tiles_x - 1));
+				}
+			
+			}
+			
+			if ( index % tiles_x != 0 ) {
+				positions.push(index - 1);
+
+				if ( !no_diags ) {
+					positions.push(index - (tiles_x + 1));
+					positions.push(index + (tiles_x - 1));
+				}
+			}
+
+			return positions;
+		}
+
+		function solveMap(size) {
+			let map = {};
+
+			for( let i = 0; i < size; i++ ) {
+				let index = i;
+
+				if ( mines.indexOf(index) >= 0 ) {
+					continue;
+				}
+
+				let positions = getSurroundingTiles(index);
+				let found_mines = 0;
+
+				positions.forEach(function(p){
+					if ( mines.indexOf(p) >= 0 ) found_mines += 1;
+				});
+
+				if ( found_mines != 0 ) {
+					numbers[index] = found_mines;
+				}
+			}
+
+			return map;
+		}
+
+		function initializeGame(difficulty) {
+			mines_count  = parseInt(Math.random() * 10) * difficulty + difficulty;
+			mines        = [];
+			numbers      = {};
+			open         = {};
+			flags        = {};
+			mines        = [];
+			clicked      = null
+			keys_pressed = {};
+			keys         = {};
+			while( mines_count > 0 ) {
+				let pos = parseInt(Math.random() * (tile_width * tile_height));
+
+				if ( mines.indexOf(pos) < 0 ) {
+					mines_count -= 1;
+					mines.push(pos);
+				}
+			}
+			solveMap(tiles_x * tiles_y);
+		}
+
+		function endGameUpdateAndRender(win) {
+
+			ctx.font = "15px monospace";
+			ctx.fillStyle = "rgba(0, 0, 0, 1.0)";
+			ctx.fillRect(0, 0, width, height);
+
+			ctx.fillStyle = "rgba(200, 10, 10, 1.0)";
+			mines.forEach(function(e, i) {
+				let p = getCoords(e);
+				ctx.fillRect(p[0]*tile_width, p[1]*tile_height,
+				             tile_width, tile_height);
+			});
+
+
+			let alpha = (Math.sin(+new Date()/400) + 1.0 / 2.0) * 0.4;
+			if ( win ) {
+				ctx.fillStyle = "rgba(0, 255, 0, " + (0.5 + alpha) + ")";
+				ctx.fillText('You WIN! Press any key to play again.', width/2 - 160, height/2);
+			}
+			else {
+				ctx.fillStyle = "rgba(255, 0, 0, " + (0.5 + alpha) + ")";
+				ctx.fillText('You LOSE! Press any key to play again.', width/2 - 160, height/2);
+			}
+
+			if ( Object.keys(keys_pressed).length > 0 ) { 
+
+				initializeGame(difficulty);
+				updateAndRender();
+				return 
+			}
+
+			keys_pressed = {}
+			requestAnimationFrame(endGameUpdateAndRender.bind(console, win));
+		};
+
+		initializeGame(difficulty);		
+
+		function updateAndRender() {
+			let current_time = + new Date();
+
+			ctx.fillStyle = "rgba(120, 120, 120, 1.0)";
+			ctx.fillRect(0, 0, width, height);
+
+
+			if ( clicked != null ) {
+				let coords = [Math.floor(clicked[0]/tile_width)-1, Math.floor(clicked[1]/tile_height)-1];
+				let index = getIndex(coords[0], coords[1]);
+
+				if ( keys['f'] ) {
+
+					if ( flags[index] ) {
+						delete flags[index];
+						if ( mines.indexOf(index) >= 0 ) {
+							found_count -= 1;
+						}
+
+					}
+					else {
+						flags[index] = true;
+						if ( mines.indexOf(index) >= 0 ) {
+							found_count += 1;
+						}
+					}
+				}
+				else if ( mines.indexOf(index) >= 0 ) {
+					ctx.fillStyle = "#490";
+					ctx.fillRect(coords[0] * tile_width, coords[1] * tile_height,
+					             tile_width, tile_height);
+
+					endGameUpdateAndRender(false);
+					return
+					
+				}
+				else {
+					let positions = getSurroundingTiles(index);
+
+					open[index] = true;
+
+					if ( !numbers[index] ) {
+						while ( positions.length > 0 ) {
+							let position = positions.shift();
+
+							if (position < 0 || position >= tiles_x*tiles_y)
+								continue;
+
+							open[position] = true;
+
+							if ( !numbers[position] ) {
+								let _p = getSurroundingTiles(position, true);
+
+								_p.forEach(function(p, i) {
+									if (positions.indexOf(p) < 0 && !open[p]) {
+										positions.push(p);
+									}
+								});
+							}
+
+						}	
+					}
+				}
+			}
+
+			if ( found_count == mines.length ) {
+				endGameUpdateAndRender(true);
+				return;
+			}
+
+			let tmines = mines.slice();
+			Object.keys(flags).forEach(function(i) {
+
+				let p = getCoords(i);
+
+				ctx.fillStyle = "rgba(200, 100, 100, 1.0)";
+				ctx.fillRect(p[0]*tile_width,
+			                 p[1]*tile_height,
+			                 tile_width,
+			                 tile_height);
+
+			});
+
+			Object.keys(open).forEach(function(i) { 
+				let p = getCoords(i);
+
+				ctx.fillStyle = "#444";
+				ctx.fillRect(p[0]*tile_width, p[1]*tile_height,
+				             tile_width, tile_height);
+
+				if ( numbers[i] ) {
+					ctx.font = "15px monospace";
+					ctx.fillStyle = NUMBER_STYLES[numbers[i]];
+					ctx.fillText(numbers[i],
+				    	         p[0]*tile_width + 6, 
+				        	     p[1]*tile_height+tile_height - 6,
+				            	 20);					
+				}
+			});
+
+			clicked = null;
+			keys_pressed = {};
+			requestAnimationFrame(updateAndRender);
+		}
+
+		updateAndRender();
+
+	};
+	</script>
+</head>
+<body>
+<canvas id='gt'></canvas>
+</body>
+</html>	
